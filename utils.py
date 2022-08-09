@@ -20,18 +20,24 @@ def apply_makeup(src: np.ndarray, is_stream: bool, feature: str = "", show_landm
     ret_landmarks = detect_landmarks(src, is_stream)
     height, width, _ = src.shape
     feature_landmarks = None
-    # if feature == 'lips':
-    feature_landmarks = normalize_landmarks(ret_landmarks, height, width, upper_lip + lower_lip)
-    mask = lip_mask(src, feature_landmarks, [153, 0, 157])
-    output = cv2.addWeighted(src, 1.0, mask, 0.4, 0.0)
-    # elif feature == 'blush':
-    feature_landmarks = normalize_landmarks(ret_landmarks, height, width, right_cheek)
-    mask = blush_mask(output, feature_landmarks, [153, 0, 157])
-    output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
+    output = src
+    try:
+        feature_landmarks = normalize_landmarks(ret_landmarks, height, width, upper_lip + lower_lip)
+        mask = lip_mask(output, feature_landmarks, [153, 0, 157])
+        output = cv2.addWeighted(output, 1.0, mask, 0.4, 0.0)
+    except:
+        pass
 
-    feature_landmarks = normalize_landmarks(ret_landmarks, height, width, left_cheek)
-    mask = blush_mask(output, feature_landmarks, [153, 0, 157])
-    output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
+    try:
+        feature_landmarks = normalize_landmarks(ret_landmarks, height, width, right_cheek)
+        mask = blush_mask(output, feature_landmarks, [153, 0, 157])
+        output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
+
+        feature_landmarks = normalize_landmarks(ret_landmarks, height, width, left_cheek)
+        mask = blush_mask(output, feature_landmarks, [153, 0, 157])
+        output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
+    except:
+        pass
     # else:  # Defaults to blush for any other thing
     #     # print(universe.remove(upper_lip))
     #     skin_mask = mask_skin(src)
