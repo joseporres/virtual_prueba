@@ -1,3 +1,4 @@
+from turtle import numinput
 import cv2
 import numpy as np
 from landmarks import detect_landmarks, normalize_landmarks, plot_landmarks
@@ -10,8 +11,8 @@ face_conn = [10, 338, 297, 332, 284, 251, 389, 264, 447, 376, 433, 288, 367, 397
 # cheeks = [425, 205]
 right_cheek = [330, 347, 346, 352, 411, 425]
 left_cheek = [117, 123, 187, 205, 101, 118]
-universe = [i for i in range(469)]
-
+right_eye = [359,446,342,445,444,443,442,441,413,464,463,414,286,258,257,259,260,467]
+left_eye = [130,226,113,225,224,223,222,221,189,244,243,190,56,28,27,29,30,247]
 
 def apply_makeup(src: np.ndarray, is_stream: bool, feature: str = "", show_landmarks: bool = False):
     """
@@ -23,18 +24,29 @@ def apply_makeup(src: np.ndarray, is_stream: bool, feature: str = "", show_landm
     output = src
     try:
         feature_landmarks = normalize_landmarks(ret_landmarks, height, width, upper_lip + lower_lip)
-        mask = lip_mask(output, feature_landmarks, [153, 0, 157])
+        mask = apply_mask(output, feature_landmarks, [153, 0, 157], 5)
         output = cv2.addWeighted(output, 1.0, mask, 0.4, 0.0)
     except:
         pass
 
     try:
         feature_landmarks = normalize_landmarks(ret_landmarks, height, width, right_cheek)
-        mask = blush_mask(output, feature_landmarks, [153, 0, 157])
+        mask = apply_mask(output, feature_landmarks, [153, 0, 157], 10)
         output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
 
         feature_landmarks = normalize_landmarks(ret_landmarks, height, width, left_cheek)
-        mask = blush_mask(output, feature_landmarks, [153, 0, 157])
+        mask = apply_mask(output, feature_landmarks, [153, 0, 157], 10)
+        output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
+    except:
+        pass
+
+    try:
+        feature_landmarks = normalize_landmarks(ret_landmarks, height, width, right_eye)
+        mask = apply_mask(output, feature_landmarks, [153, 0, 157], 10)
+        output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
+
+        feature_landmarks = normalize_landmarks(ret_landmarks, height, width, left_eye)
+        mask = apply_mask(output, feature_landmarks, [153, 0, 157], 10)
         output = cv2.addWeighted(output, 1.0, mask, 0.3, 0.0)
     except:
         pass
@@ -47,27 +59,27 @@ def apply_makeup(src: np.ndarray, is_stream: bool, feature: str = "", show_landm
     return output
 
 
-def apply_feature(src: np.ndarray, feature: str, landmarks: list, normalize: bool = False,
-                  show_landmarks: bool = False):
-    """
-    Performs similar to `apply_makeup` but needs the landmarks explicitly
-    Specifically implemented to reduce the computation on the server
-    """
-    height, width, _ = src.shape
-    if normalize:
-        landmarks = normalize_landmarks(landmarks, height, width)
-    if feature == 'lips':
-        mask = lip_mask(src, landmarks, [153, 0, 157])
-        output = cv2.addWeighted(src, 1.0, mask, 0.4, 0.0)
-    elif feature == 'blush':
-        mask = blush_mask(src, landmarks, [153, 0, 157], 50)
-        output = cv2.addWeighted(src, 1.0, mask, 0.3, 0.0)
-    else:  # Does not require any landmarks for skin masking -> Foundation
-        skin_mask = mask_skin(src)
-        output = np.where(src * skin_mask >= 1, gamma_correction(src, 1.75), src)
-    if show_landmarks:  # Refrain from using this during an API Call
-        plot_landmarks(src, landmarks, True)
-    return output
+# def apply_feature(src: np.ndarray, feature: str, landmarks: list, normalize: bool = False,
+#                   show_landmarks: bool = False):
+#     """
+#     Performs similar to `apply_makeup` but needs the landmarks explicitly
+#     Specifically implemented to reduce the computation on the server
+#     """
+#     height, width, _ = src.shape
+#     if normalize:
+#         landmarks = normalize_landmarks(landmarks, height, width)
+#     if feature == 'lips':
+#         mask = lip_mask(src, landmarks, [153, 0, 157])
+#         output = cv2.addWeighted(src, 1.0, mask, 0.4, 0.0)
+#     elif feature == 'blush':
+#         mask = blush_mask(src, landmarks, [153, 0, 157], 50)
+#         output = cv2.addWeighted(src, 1.0, mask, 0.3, 0.0)
+#     else:  # Does not require any landmarks for skin masking -> Foundation
+#         skin_mask = mask_skin(src)
+#         output = np.where(src * skin_mask >= 1, gamma_correction(src, 1.75), src)
+#     if show_landmarks:  # Refrain from using this during an API Call
+#         plot_landmarks(src, landmarks, True)
+#     return output
 
 
 def lip_mask(src: np.ndarray, points: np.ndarray, color: list):
@@ -82,15 +94,16 @@ def lip_mask(src: np.ndarray, points: np.ndarray, color: list):
     return mask
 
 
-def blush_mask(src: np.ndarray, points: np.ndarray, color: list, radius: int = 50):
+def apply_mask(src: np.ndarray, points: np.ndarray, color: list, num_iter: int):
     """
     Given a src image, points of the cheeks, desired color and radius
     Returns a colored mask that can be added to the src
     """
     mask = np.zeros_like(src)
     mask = cv2.fillPoly(mask, [points], color)
-    for i in range(10):
+    while num_iter > 0:
         mask = cv2.GaussianBlur(mask, (7, 7), 5)
+        num_iter -= 1
     return mask
 
 def mask_skin(src: np.ndarray):
